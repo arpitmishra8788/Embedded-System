@@ -1,0 +1,92 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <time.h>
+
+#define NUM_SENSORS 4
+#define SENSOR_THRESHOLD 50.0
+#define AI_MODEL_THRESHOLD 0.7
+#define MAX_CORES 3
+#define MAX_POWER_MODE 3  // 0: Sleep, 1: Low, 2: Normal, 3: High
+
+typedef struct {
+    int core_id;
+    int active;
+    int power_mode; // 0: Sleep, 1: Low Power, 2: Normal, 3: High Performance
+} Microcontroller;
+
+Microcontroller MCUs[MAX_CORES];
+
+// AI-Based Anomaly Detection (Simulated using Gaussian Distribution)
+float ML_AnomalyDetection(float data) {
+    float deviation = fabs(data - SENSOR_THRESHOLD);
+    return exp(-0.01 * deviation * deviation); // Simulated probability
+}
+
+// Simulate Radiation Fault (Bit Flip in Sensor Data)
+void SimulateRadiationFault(float *data) {
+    int bit = rand() % 32;  // Random bit flip
+    *((int*)data) ^= (1 << bit);
+}
+
+// Dynamic Power Scaling Algorithm
+void AdjustPowerScaling(int active_cores) {
+    for (int i = 0; i < MAX_CORES; i++) {
+        if (MCUs[i].active) {
+            MCUs[i].power_mode = (active_cores > 1) ? 2 : 3;  // Normal if multi-core, High Perf if single-core
+        } else {
+            MCUs[i].power_mode = 0;  // Put inactive cores in sleep mode
+        }
+    }
+}
+
+// Task Reassignment Mechanism
+void ReassignTasks(int failed_core) {
+    printf("[FAULT] Core %d failed! Attempting task migration...\n", failed_core);
+    
+    int reassigned = 0;
+    for (int i = 0; i < MAX_CORES; i++) {
+        if (i != failed_core && MCUs[i].active) {
+            printf("[RECOVERY] Tasks moved to Core %d.\n", i);
+            AdjustPowerScaling(MAX_CORES - 1);
+            reassigned = 1;
+            break;
+        }
+    }
+    
+    if (!reassigned) {
+        printf("[CRITICAL] No available cores! Entering SAFE MODE...\n");
+    }
+}
+
+int main() {
+    srand(time(NULL));
+
+    // Initialize Microcontrollers
+    for (int i = 0; i < MAX_CORES; i++) {
+        MCUs[i] = (Microcontroller){i, 1, 2}; // Default to normal power mode
+    }
+
+    float sensor_data[NUM_SENSORS] = {45.0, 48.0, 52.0, 46.0}; // Initial readings
+
+    // Simulated Monitoring Cycles
+    for (int cycle = 0; cycle < 10; cycle++) {
+        printf("\n[Cycle %d] Monitoring Sensors...\n", cycle);
+
+        for (int i = 0; i < NUM_SENSORS; i++) {
+            // Introduce radiation-induced fault randomly
+            if (rand() % 5 == 0) {
+                SimulateRadiationFault(&sensor_data[i]);
+                printf("[FAULT] Sensor %d corrupted!\n", i);
+            }
+
+            // Run AI model to check for anomalies
+            if (ML_AnomalyDetection(sensor_data[i]) < AI_MODEL_THRESHOLD) {
+                printf("[WARNING] Sensor %d anomaly detected!\n", i);
+                ReassignTasks(rand() % MAX_CORES);
+            }
+        }
+    }
+
+    return 0;
+}
